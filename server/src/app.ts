@@ -9,6 +9,7 @@ import { httpLogger, errorHandler } from "./middleware/index.js";
 import { actorMiddleware } from "./middleware/auth.js";
 import { boardMutationGuard } from "./middleware/board-mutation-guard.js";
 import { privateHostnameGuard, resolvePrivateHostnameAllowSet } from "./middleware/private-hostname-guard.js";
+import { missionControlProxy } from "./middleware/mission-control-proxy.js";
 import { healthRoutes } from "./routes/health.js";
 import { companyRoutes } from "./routes/companies.js";
 import { companySkillRoutes } from "./routes/company-skills.js";
@@ -105,6 +106,11 @@ export async function createApp(
       resolveSession: opts.resolveSession,
     }),
   );
+  // Mission Control v2 reverse proxy. Only intercepts requests that carry the
+  // `x-api-key` header matching MC_API_KEY — Paperclip's own UI is untouched.
+  // Forwards /api/agents, /api/agents/*, /api/factory-floor/state to
+  // http://localhost:3007 (configurable via MC_PROXY_TARGET).
+  app.use(missionControlProxy());
   app.get("/api/auth/get-session", (req, res) => {
     if (req.actor.type !== "board" || !req.actor.userId) {
       res.status(401).json({ error: "Unauthorized" });
