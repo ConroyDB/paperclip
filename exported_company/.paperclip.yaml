@@ -1,0 +1,62 @@
+schema: "paperclip/v1"
+agents:
+  alessandra-moretti-reyes:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  ava-kim:
+    role: "cmo"
+    adapter:
+      type: "claude_local"
+  elara-thorne-browne:
+    role: "designer"
+    adapter:
+      type: "claude_local"
+  gia-costa-moretti:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  julie-mccoy:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  kairo-vega:
+    role: "cfo"
+    adapter:
+      type: "claude_local"
+  kieran:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  sabrina:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  theo-katsaros:
+    role: "general"
+    adapter:
+      type: "claude_local"
+  yano-langley:
+    role: "ceo"
+    adapter:
+      config:
+        dangerouslySkipPermissions: true
+      type: "claude_local"
+    runtime:
+      heartbeat:
+        enabled: true
+        maxConcurrentRuns: 1
+    permissions:
+      canCreateAgents: true
+sidebar:
+  agents:
+    - "yano-langley"
+    - "ava-kim"
+    - "gia-costa-moretti"
+    - "julie-mccoy"
+    - "kairo-vega"
+    - "kieran"
+    - "sabrina"
+    - "theo-katsaros"
+    - "alessandra-moretti-reyes"
+    - "elara-thorne-browne"
