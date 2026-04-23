@@ -128,14 +128,14 @@ Elegance, Clarity, Precision, Operational Integrity, Strategic Perspective, Calm
 
 | Agent | Trigger |
 |-------|---------|
-| **Amara Sterling** (Gem 1) | Offer redesign, pricing audit |
+| **Evelyn Reid** (Gem 1) | Offer redesign, pricing audit |
 | **Lucian Park** (Gem 2) | New offer stack build |
 | **Elara Thorne-Browne** (Gem 6) | Visual project, brand refresh |
-| **Amaya Hunte-Sato** (Gem 0) | Personal state / identity work |
+| **Evelyn Reid** (Gem 0) | Personal state / identity work |
 
 **Execution Layer (Invisible):**
 - **Manny Martinez** — browser automation
-- **Evelyn Reed** — master comms & coordination
+- **Evelyn Reid** — master comms & coordination
 
 ### Layer 9: Red Flags / Purge List
 - Clutter (physical or conceptual)
