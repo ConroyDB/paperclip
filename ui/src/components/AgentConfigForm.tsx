@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AGENT_ADAPTER_TYPES } from "@paperclipai/shared";
 import type {
   Agent,
   AdapterEnvironmentTestResult,

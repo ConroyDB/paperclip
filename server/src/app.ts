@@ -35,6 +35,7 @@ import { pluginRoutes } from "./routes/plugins.js";
 import { adapterRoutes } from "./routes/adapters.js";
 import { pluginUiStaticRoutes } from "./routes/plugin-ui-static.js";
 import { applyUiBranding } from "./ui-branding.js";
+import { getWarRoomHtml } from "./warroom-html.js";
 import { logger } from "./middleware/logger.js";
 import { DEFAULT_LOCAL_PLUGIN_DIR, pluginLoader } from "./services/plugin-loader.js";
 import { createPluginWorkerManager } from "./services/plugin-worker-manager.js";
@@ -295,6 +296,17 @@ export async function createApp(
   app.use(pluginUiStaticRoutes(db, {
     localPluginDir: opts.localPluginDir ?? DEFAULT_LOCAL_PLUGIN_DIR,
   }));
+
+  if (process.env.WARROOM_ENABLED === 'true') {
+    app.get('/warroom', (req, res) => {
+      const token = process.env.WARROOM_TOKEN || 'warroom-cbi';
+      const chatId = (req.query['chatId'] as string) || '';
+      const warroomPort = parseInt(process.env.WARROOM_PORT || '7860', 10);
+      res.status(200).set('Content-Type', 'text/html').set('Cache-Control', 'no-cache').end(
+        getWarRoomHtml(token, chatId, warroomPort)
+      );
+    });
+  }
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   if (opts.uiMode === "static") {

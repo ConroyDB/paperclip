@@ -26,4 +26,13 @@ if [ "$changed" = "1" ]; then
     chown -R node:node /paperclip
 fi
 
+# Start War Room voice server if enabled
+if [ "${WARROOM_ENABLED}" = "true" ]; then
+  cd /app/warroom
+  python3 -m venv .venv
+  .venv/bin/pip install -q -r requirements.txt
+  WARROOM_PORT="${WARROOM_PORT:-7860}" .venv/bin/python server.py &
+  cd /app
+fi
+
 exec gosu node "$@"

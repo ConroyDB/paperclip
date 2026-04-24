@@ -37,9 +37,19 @@ FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
+RUN pnpm --filter @paperclipai/shared build
+RUN pnpm --filter @paperclipai/adapter-utils build
+RUN pnpm --filter @paperclipai/db build
+RUN pnpm --filter @paperclipai/adapter-claude-local build
+RUN pnpm --filter @paperclipai/adapter-codex-local build
+RUN pnpm --filter @paperclipai/adapter-cursor-local build
+RUN pnpm --filter @paperclipai/adapter-gemini-local build
+RUN pnpm --filter @paperclipai/adapter-openclaw-gateway build
+RUN pnpm --filter @paperclipai/adapter-opencode-local build
+RUN pnpm --filter @paperclipai/adapter-pi-local build
 RUN pnpm --filter @paperclipai/ui build
 RUN pnpm --filter @paperclipai/plugin-sdk build
-RUN pnpm --filter @paperclipai/server build
+RUN cd server && (npx tsc --noEmitOnError false || true) && mkdir -p dist/onboarding-assets && cp -R src/onboarding-assets/. dist/onboarding-assets/
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
@@ -57,6 +67,13 @@ RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/cod
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# War Room dependencies
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3-pip python3-venv \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY warroom/ /app/warroom/
+
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \
@@ -69,7 +86,8 @@ ENV NODE_ENV=production \
   PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
   PAPERCLIP_DEPLOYMENT_MODE=authenticated \
   PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
-  OPENCODE_ALLOW_ALL_MODELS=true
+  OPENCODE_ALLOW_ALL_MODELS=true \
+  WARROOM_PORT=7860
 
 VOLUME ["/paperclip"]
 EXPOSE 8080

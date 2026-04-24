@@ -1,0 +1,72 @@
+{
+  "yano-langley": {
+    "gemini_voice": "Charon",
+    "name": "Yano Langley — COO",
+    "description": "British Male, informative, confident"
+  },
+  "evelyn-reid": {
+    "gemini_voice": "Aoede",
+    "name": "Evelyn Reid — Master Orchestrator",
+    "description": "Warm, coordinating"
+  },
+  "theo-katsaros": {
+    "gemini_voice": "Kore",
+    "name": "Theo — Oracle",
+    "description": "American Female, firm, analytical"
+  },
+  "alessandra-moretti-reyes": {
+    "gemini_voice": "Leda",
+    "name": "Alessandra Moretti-Reyes — Positioning",
+    "description": "British Female, youthful, creative"
+  },
+  "kairo-vega": {
+    "gemini_voice": "Alnilam",
+    "name": "Kairo Vega — Revenue OS",
+    "description": "American Male, firm, direct"
+  },
+  "gia-costa-moretti": {
+    "gemini_voice": "Sulafat",
+    "name": "Gia Costa-Moretti — Reactivation",
+    "description": "Warm, relational"
+  },
+  "lucian-park": {
+    "gemini_voice": "Fenrir",
+    "name": "Lucian Park — Offer Engineer",
+    "description": "Measured, precise"
+  },
+  "elara-thorne-browne": {
+    "gemini_voice": "Zephyr",
+    "name": "Elara Thorne-Browne — Art Director",
+    "description": "Creative, expressive"
+  },
+  "orion-kenji-valeriano": {
+    "gemini_voice": "Orbit",
+    "name": "Orion Kenji Valeriano — Intelligence",
+    "description": "Analytical, wide-ranging"
+  },
+  "ava-kim": {
+    "gemini_voice": "Schedar",
+    "name": "Ava Kim — Organic Growth",
+    "description": "Energetic, editorial"
+  },
+  "lucian-park-bench": {
+    "gemini_voice": "Puck",
+    "name": "Lucian Park (Bench) — Value Cartographer",
+    "description": "Incisive"
+  },
+  "kieran": {
+    "gemini_voice": "Rasalhed",
+    "name": "Kieran",
+    "description": "Direct"
+  },
+  "sabrina": {
+    "gemini_voice": "Achernar",
+    "name": "Sabrina",
+    "description": "Warm, persuasive"
+  },
+  "julie-mccoy": {
+    "gemini_voice": "Gacrux",
+    "name": "Julie McCoy",
+    "description": "Hospitable, clear"
+  }
+}
