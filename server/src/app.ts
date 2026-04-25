@@ -298,14 +298,138 @@ export async function createApp(
   }));
 
   if (process.env.WARROOM_ENABLED === 'true') {
+    const warroomPort = parseInt(process.env.WARROOM_PORT || '7860', 10);
+    const __warroomDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'warroom');
+    const warroomVoicesPath = path.join(__warroomDir, 'voices.json');
+    const warroomPinPath = '/tmp/warroom-pin.json';
+
+    // Load voices.json to build agent roster
+    function loadWarroomAgents(): Array<{ id: string; name: string; description: string }> {
+      try {
+        const raw = JSON.parse(fs.readFileSync(warroomVoicesPath, 'utf-8'));
+        return Object.entries(raw).map(([id, cfg]: [string, any]) => ({
+          id,
+          name: cfg.name || id,
+          description: cfg.description || '',
+        }));
+      } catch {
+        return [];
+      }
+    }
+
+    // Write agent roster to /tmp so Python server can read it
+    try {
+      const roster = loadWarroomAgents();
+      fs.writeFileSync('/tmp/warroom-agents.json', JSON.stringify(roster, null, 2), 'utf-8');
+    } catch { /* non-fatal */ }
+
+    function readPinState(): { agent: string; mode: string } {
+      try {
+        const data = JSON.parse(fs.readFileSync(warroomPinPath, 'utf-8'));
+        return { agent: data.agent || 'yano-langley', mode: data.mode || 'direct' };
+      } catch {
+        return { agent: 'yano-langley', mode: 'direct' };
+      }
+    }
+
+    async function killWarroomAsync(): Promise<void> {
+      const { spawn } = await import('child_process');
+      const pids: number[] = await new Promise((resolve) => {
+        const p = spawn('pgrep', ['-f', 'warroom/server.py']);
+        let out = '';
+        p.stdout.on('data', (chunk: Buffer) => { out += chunk.toString(); });
+        p.on('close', () => resolve(out.trim().split(/\s+/).map(Number).filter(Number.isFinite)));
+        p.on('error', () => resolve([]));
+      });
+      for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch { /* gone */ } }
+    }
+
     app.get('/warroom', (req, res) => {
       const token = process.env.WARROOM_TOKEN || 'warroom-cbi';
       const chatId = (req.query['chatId'] as string) || '';
-      const warroomPort = parseInt(process.env.WARROOM_PORT || '7860', 10);
       res.status(200).set('Content-Type', 'text/html').set('Cache-Control', 'no-cache').end(
         getWarRoomHtml(token, chatId, warroomPort)
       );
     });
+
+    // Serve agent avatars from warroom/avatars/
+    app.get('/warroom-avatar/:id', (req, res) => {
+      const id = (req.params['id'] || '').replace(/[^a-zA-Z0-9_-]/g, '');
+      const avatarPath = path.join(__warroomDir, 'avatars', `${id}.png`);
+      if (fs.existsSync(avatarPath)) {
+        res.sendFile(avatarPath);
+      } else {
+        res.status(404).end();
+      }
+    });
+
+    // Return agent list from voices.json
+    app.get('/api/warroom/agents', (_req, res) => {
+      res.json({ agents: loadWarroomAgents() });
+    });
+
+    // Probe Python WS server readiness
+    app.post('/api/warroom/start', async (_req, res) => {
+      const net = await import('net');
+      const ready = await new Promise<boolean>((resolve) => {
+        const sock = new net.Socket();
+        const timer = setTimeout(() => { sock.destroy(); resolve(false); }, 3000);
+        sock.connect(warroomPort, '127.0.0.1', () => { clearTimeout(timer); sock.destroy(); resolve(true); });
+        sock.on('error', () => { clearTimeout(timer); sock.destroy(); resolve(false); });
+      });
+      if (!ready) {
+        res.status(503).json({ ok: false, status: 'starting', error: 'War Room server not ready yet' });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+      res.json({ ok: true, status: 'ready' });
+    });
+
+    // Pin state read/write
+    app.get('/api/warroom/pin', (_req, res) => {
+      const { agent, mode } = readPinState();
+      res.json({ ok: true, agent, mode });
+    });
+
+    app.post('/api/warroom/pin', (req, res) => {
+      const body = req.body || {};
+      const current = readPinState();
+      const nextAgent = body.agent !== undefined ? body.agent : current.agent;
+      const nextMode = body.mode !== undefined ? body.mode : current.mode;
+      try {
+        fs.writeFileSync(warroomPinPath, JSON.stringify({ agent: nextAgent, mode: nextMode, pinnedAt: Date.now() }), 'utf-8');
+        if (body.restart !== false) { void killWarroomAsync(); }
+        res.json({ ok: true, agent: nextAgent, mode: nextMode });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: String(err) });
+      }
+    });
+
+    app.post('/api/warroom/unpin', (_req, res) => {
+      try {
+        if (fs.existsSync(warroomPinPath)) fs.unlinkSync(warroomPinPath);
+        void killWarroomAsync();
+        res.json({ ok: true, agent: null, mode: 'direct' });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: String(err) });
+      }
+    });
+
+    // Lightweight in-memory meeting tracking
+    const _meetings = new Map<string, { id: string; mode: string; agent: string; startedAt: number }>();
+    app.post('/api/warroom/meeting/start', (req, res) => {
+      const body = req.body || {};
+      const id = body.id || crypto.randomUUID();
+      _meetings.set(id, { id, mode: body.mode || 'direct', agent: body.agent || 'yano-langley', startedAt: Date.now() });
+      res.json({ ok: true, meetingId: id });
+    });
+    app.post('/api/warroom/meeting/end', (req, res) => {
+      const body = req.body || {};
+      if (body.id) _meetings.delete(body.id);
+      res.json({ ok: true });
+    });
+    app.post('/api/warroom/meeting/transcript', (_req, res) => { res.json({ ok: true }); });
+    app.get('/api/warroom/meetings', (_req, res) => { res.json({ meetings: [] }); });
   }
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));

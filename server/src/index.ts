@@ -563,6 +563,42 @@ export async function startServer(): Promise<StartedServer> {
     resolveSessionFromHeaders,
   });
 
+  // War Room WebSocket proxy: /ws/warroom → localhost:WARROOM_PORT
+  if (process.env.WARROOM_ENABLED === 'true') {
+    const warroomWsPort = parseInt(process.env.WARROOM_PORT || '7860', 10);
+    void import('ws').then((wsModule: any) => {
+      const WS = wsModule.default?.WebSocket ?? wsModule.WebSocket;
+      const WSServer = wsModule.default?.WebSocketServer ?? wsModule.WebSocketServer;
+      if (!WSServer) return;
+      const wss = new WSServer({ noServer: true });
+      server.on('upgrade', (req: import('http').IncomingMessage, socket: import('stream').Duplex, head: Buffer) => {
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        if (url.pathname !== '/ws/warroom') return;
+        wss.handleUpgrade(req, socket, head, (clientWs: any) => {
+          const remote = new WS(`ws://127.0.0.1:${warroomWsPort}`);
+          let remoteReady = false;
+          const buffered: (Buffer | ArrayBuffer | string)[] = [];
+          remote.on('open', () => {
+            remoteReady = true;
+            for (const msg of buffered) remote.send(msg);
+            buffered.length = 0;
+          });
+          remote.on('message', (data: Buffer | ArrayBuffer | string) => {
+            if (clientWs.readyState === 1) clientWs.send(data);
+          });
+          remote.on('close', () => clientWs.close());
+          remote.on('error', () => { try { clientWs.close(1011, 'War Room error'); } catch { /* ok */ } });
+          clientWs.on('message', (data: Buffer | ArrayBuffer | string) => {
+            if (remoteReady) remote.send(data);
+            else buffered.push(data);
+          });
+          clientWs.on('close', () => { if (remote.readyState <= 1) remote.close(); });
+        });
+      });
+      logger.info('War Room WebSocket proxy active at /ws/warroom');
+    }).catch(() => { /* ws not available */ });
+  }
+
   void reconcilePersistedRuntimeServicesOnStartup(db as any)
     .then((result) => {
       if (result.reconciled > 0) {
