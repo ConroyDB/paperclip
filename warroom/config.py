@@ -45,5 +45,6 @@ def load_voices() -> dict:
 # Pre-load at import time so other modules can use it directly
 AGENT_VOICES = load_voices()
 
-# Default agent if routing can't determine who should respond
-DEFAULT_AGENT = "main"
+# Default agent (Cloud Run service name) if routing can't determine who
+# should respond. Yano is the COO and the front-desk router for the swarm.
+DEFAULT_AGENT = "yano-langley"

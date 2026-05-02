@@ -35,8 +35,27 @@ logger = logging.getLogger("warroom.router")
 PIN_PATH = Path("/tmp/warroom-pin.json")
 
 
-# Agent identifiers that match the agents/ directory names
-AGENT_NAMES = {"main", "research", "comms", "content", "ops"}
+# Spoken short-names → Hermes Cloud Run service names. Conroy says
+# "Yano, ..." in the War Room; we resolve that to the actual service.
+SHORTNAME_TO_SERVICE = {
+    "yano": "yano-langley",
+    "evelyn": "evelyn-reid",
+    "theo": "theo-katsaros",
+    "alessandra": "alessandra-moretti-reyes",
+    "kairo": "kairo-vega",
+    "gia": "gia-costa-moretti",
+    "lucian": "lucian-park",
+    "elara": "elara-thorne-browne",
+    "orion": "orion-kenji-valerino",
+    "ava": "ava-kim",
+    "gary": "gary-tan",
+    "kieran": "kieran",
+    "sabrina": "sabrina",
+    "julie": "julie-mccoy",
+}
+
+# Cloud Run service names — the canonical IDs the rest of the war room uses.
+AGENT_NAMES = set(SHORTNAME_TO_SERVICE.values())
 
 # Phrases that trigger a broadcast to all agents
 BROADCAST_TRIGGERS = {
@@ -47,9 +66,17 @@ BROADCAST_TRIGGERS = {
 # Common casual prefixes people use before an agent name
 _GREETING_PREFIXES = r"(?:hey|yo|ok|okay|alright)?\s*"
 
-# Build a compiled pattern: optional greeting + agent name + separator
+# Build a compiled pattern matching either a spoken short-name or the full
+# Cloud Run service name. Longest alternatives first so "lucian-park" wins
+# over "lucian".
+_alternation = "|".join(
+    re.escape(n) for n in sorted(
+        list(SHORTNAME_TO_SERVICE.keys()) + list(AGENT_NAMES),
+        key=len, reverse=True,
+    )
+)
 _agent_pattern = re.compile(
-    rf"^\s*{_GREETING_PREFIXES}({'|'.join(AGENT_NAMES)})[,:\s]+(.+)",
+    rf"^\s*{_GREETING_PREFIXES}({_alternation})[,:\s]+(.+)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -164,7 +191,10 @@ class AgentRouter(FrameProcessor):
         # Check for agent name prefix
         match = _agent_pattern.match(text)
         if match:
-            agent_id = match.group(1).lower()
+            spoken = match.group(1).lower()
+            # Resolve short-name ("yano") to Cloud Run service ("yano-langley");
+            # if the user said the full service name, pass it through.
+            agent_id = SHORTNAME_TO_SERVICE.get(spoken, spoken)
             message = match.group(2).strip()
             route = AgentRouteFrame(
                 agent_id=agent_id,
@@ -187,9 +217,10 @@ class AgentRouter(FrameProcessor):
             await self.push_frame(route)
             return
 
-        # Default: route to main agent
+        # Default: route to Yano (the COO front-desk).
+        from config import DEFAULT_AGENT
         route = AgentRouteFrame(
-            agent_id="main",
+            agent_id=DEFAULT_AGENT,
             message=text,
             mode="single",
         )
