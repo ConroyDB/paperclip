@@ -3,15 +3,15 @@ ClaudeAgentBridge: a Pipecat FrameProcessor that takes routed messages,
 calls the appropriate Hermes Cloud Run agent over HTTP, and emits
 TTS-ready text frames with the correct agent voice.
 
-The bridge POSTs to:
-    https://<service>-794842605643.us-central1.run.app/task
-with JSON body {"task": "..."} and reads the agent's text response.
+The bridge POSTs to each agent's synchronous task endpoint:
+    https://<service>-794842605643.us-central1.run.app/discord
+with JSON body {"message": "...", "user": "warroom"} and reads the
+"response" field. This is the same endpoint the Discord gateway uses,
+so the agent returns its full response text after running through SOUL
++ 200 MCP tools + Paperclip wiring.
 
 This replaces the prior local Node.js subprocess bridge which talked to
-ClaudeClaw council shims (no SOUL, no MCP, no Paperclip wiring). Voice
-now reaches the SAME agent runtime that Telegram, Discord, and the
-Paperclip Office use — full SOUL, 200 MCP tools, Paperclip wiring,
-1,606 indexed sessions.
+ClaudeClaw council shims (no SOUL, no MCP, no Paperclip wiring).
 """
 
 import asyncio
@@ -30,11 +30,17 @@ from router import AgentRouteFrame, AGENT_NAMES
 logger = logging.getLogger("warroom.agent_bridge")
 
 # How long to wait for the Cloud Run agent to respond (seconds). Cold-start
-# from scale-to-zero takes ~15-30s; warm requests answer in 2-10s.
-BRIDGE_TIMEOUT = 60
+# from scale-to-zero takes ~15-30s; warm requests answer in 2-10s. KB-search
+# tasks can run to ~60s on a warm container.
+BRIDGE_TIMEOUT = 120
 
 # Cloud Run URL pattern. {agent} is the Hermes service name (e.g. "yano-langley").
-AGENT_URL_TEMPLATE = "https://{agent}-794842605643.us-central1.run.app/task"
+# /discord is the synchronous task endpoint that returns {"response": "..."}.
+AGENT_URL_TEMPLATE = "https://{agent}-794842605643.us-central1.run.app/discord"
+
+# Identifies the caller in MC/Discord chat logs so War Room invocations are
+# distinguishable from real Discord traffic.
+WARROOM_USER_TAG = "warroom-voice"
 
 # Agent order for round-robin broadcasts. Hermes Cloud Run service names.
 BROADCAST_ORDER = [
@@ -120,7 +126,10 @@ class ClaudeAgentBridge(FrameProcessor):
 
         try:
             async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT) as client:
-                r = await client.post(url, json={"task": message})
+                r = await client.post(
+                    url,
+                    json={"message": message, "user": WARROOM_USER_TAG},
+                )
                 r.raise_for_status()
                 data = r.json()
 
