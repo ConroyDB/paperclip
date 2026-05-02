@@ -57,7 +57,7 @@ from server import (  # noqa: E402
     check_required_keys,
 )
 from personas import get_persona  # noqa: E402
-from config import AGENT_VOICES  # noqa: E402
+from config import AGENT_VOICES, DEFAULT_AGENT  # noqa: E402
 
 
 logging.basicConfig(
@@ -128,10 +128,10 @@ async def run_agent(args: argparse.Namespace) -> None:
 
     mode = args.mode if args.mode in {"direct", "auto"} else "direct"
 
-    # Voice picks main's voice in auto mode (Gemini is acting as router)
-    # and the agent's own voice in direct mode.
-    voice_agent = "main" if mode == "auto" else agent
-    voice_entry = AGENT_VOICES.get(voice_agent) or AGENT_VOICES.get("main", {})
+    # Voice picks the front-desk default in auto mode (Gemini is acting as
+    # router) and the agent's own voice in direct mode.
+    voice_agent = DEFAULT_AGENT if mode == "auto" else agent
+    voice_entry = AGENT_VOICES.get(voice_agent) or AGENT_VOICES.get(DEFAULT_AGENT, {})
     voice = os.environ.get("WARROOM_LIVE_VOICE") or voice_entry.get("gemini_voice") or "Charon"
 
     # Resolve system prompt. Priority: --brief file, else agent persona.
@@ -360,7 +360,7 @@ async def run_agent(args: argparse.Namespace) -> None:
 def main():
     parser = argparse.ArgumentParser(description="ClaudeClaw Daily.co voice agent")
     parser.add_argument("--room-url", required=True, help="Full Daily room URL")
-    parser.add_argument("--agent", default="main", help="Which ClaudeClaw agent persona to use")
+    parser.add_argument("--agent", default=DEFAULT_AGENT, help="Which Hermes Cloud Run agent persona to use")
     parser.add_argument("--mode", default="direct", choices=["direct", "auto"])
     parser.add_argument("--token", default=None, help="Optional Daily meeting token")
     parser.add_argument("--bot-name", default=None, help="Display name in the Daily UI")

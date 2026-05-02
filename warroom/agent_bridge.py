@@ -1,41 +1,53 @@
 """
 ClaudeAgentBridge: a Pipecat FrameProcessor that takes routed messages,
-calls the appropriate ClaudeClaw agent via the Node.js voice bridge,
-and emits TTS-ready text frames with the correct agent voice.
+calls the appropriate Hermes Cloud Run agent over HTTP, and emits
+TTS-ready text frames with the correct agent voice.
 
-The bridge invokes:
-    node PROJECT_ROOT/dist/agent-voice-bridge.js --agent AGENT_ID --message "TEXT"
+The bridge POSTs to:
+    https://<service>-794842605643.us-central1.run.app/task
+with JSON body {"task": "..."} and reads the agent's text response.
 
-It reads the agent's response from stdout and switches the Cartesia TTS
-voice before emitting the response as a TextFrame.
+This replaces the prior local Node.js subprocess bridge which talked to
+ClaudeClaw council shims (no SOUL, no MCP, no Paperclip wiring). Voice
+now reaches the SAME agent runtime that Telegram, Discord, and the
+Paperclip Office use — full SOUL, 200 MCP tools, Paperclip wiring,
+1,606 indexed sessions.
 """
 
 import asyncio
-import json
 import logging
 from typing import Optional
+
+import httpx
 
 from pipecat.frames.frames import TextFrame, TTSUpdateSettingsFrame
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 
-from config import PROJECT_ROOT, AGENT_VOICES, DEFAULT_AGENT
+from config import AGENT_VOICES, DEFAULT_AGENT
 from router import AgentRouteFrame, AGENT_NAMES
 
 
 logger = logging.getLogger("warroom.agent_bridge")
 
-# How long to wait for the Node.js bridge to respond (seconds)
+# How long to wait for the Cloud Run agent to respond (seconds). Cold-start
+# from scale-to-zero takes ~15-30s; warm requests answer in 2-10s.
 BRIDGE_TIMEOUT = 60
 
-# Path to the voice bridge script
-BRIDGE_SCRIPT = PROJECT_ROOT / "dist" / "agent-voice-bridge.js"
+# Cloud Run URL pattern. {agent} is the Hermes service name (e.g. "yano-langley").
+AGENT_URL_TEMPLATE = "https://{agent}-794842605643.us-central1.run.app/task"
 
-# Agent order for round-robin broadcasts
-BROADCAST_ORDER = ["main", "research", "comms", "content", "ops"]
+# Agent order for round-robin broadcasts. Hermes Cloud Run service names.
+BROADCAST_ORDER = [
+    "yano-langley",             # COO routing
+    "alessandra-moretti-reyes", # narrative
+    "kairo-vega",               # revenue
+    "gia-costa-moretti",        # reactivation
+    "ava-kim",                  # content
+]
 
 
 class ClaudeAgentBridge(FrameProcessor):
-    """Receives AgentRouteFrames, calls the Claude agent, and emits
+    """Receives AgentRouteFrames, calls the Hermes Cloud Run agent, and emits
     voice-switched TextFrames for TTS output."""
 
     def __init__(self, **kwargs):
@@ -70,8 +82,10 @@ class ClaudeAgentBridge(FrameProcessor):
         for agent_id in BROADCAST_ORDER:
             response = await self._call_agent(agent_id, message)
             if response:
-                # Prefix with agent name so the listener knows who is speaking
-                tagged = f"{agent_id.capitalize()} here. {response}"
+                # Prefix with agent name so the listener knows who is speaking.
+                # Use the entry's display name if available, else the service id.
+                display = (AGENT_VOICES.get(agent_id) or {}).get("name") or agent_id
+                tagged = f"{display.split('—')[0].strip()} here. {response}"
                 await self._emit_response(agent_id, tagged)
 
     async def _emit_response(self, agent_id: str, text: str):
@@ -94,88 +108,53 @@ class ClaudeAgentBridge(FrameProcessor):
         await self.push_frame(TextFrame(text=text))
 
     async def _call_agent(self, agent_id: str, message: str) -> Optional[str]:
-        """Call the Node.js voice bridge subprocess for the given agent.
+        """POST the message to the Hermes Cloud Run agent's /task endpoint.
 
         Returns the agent's text response, or None on failure.
         """
+        url = AGENT_URL_TEMPLATE.format(agent=agent_id)
         logger.info(
-            "calling agent %s (msg preview: %r)",
-            agent_id, message[:80],
+            "calling agent %s at %s (msg preview: %r)",
+            agent_id, url, message[:80],
         )
-        if not BRIDGE_SCRIPT.exists():
-            logger.error(
-                "Voice bridge script not found at %s. "
-                "Build the project first: npm run build",
-                BRIDGE_SCRIPT,
-            )
-            return f"I'm having trouble reaching the {agent_id} agent right now."
-
-        cmd = [
-            "node",
-            str(BRIDGE_SCRIPT),
-            "--agent", agent_id,
-            "--message", message,
-        ]
 
         try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(PROJECT_ROOT),
+            async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT) as client:
+                r = await client.post(url, json={"task": message})
+                r.raise_for_status()
+                data = r.json()
+
+            if not isinstance(data, dict):
+                logger.warning("Agent %s returned non-dict body: %r", agent_id, data)
+                return str(data) if data else None
+
+            if data.get("error"):
+                logger.error("Agent %s returned error: %s", agent_id, data["error"])
+                return f"The {agent_id} agent ran into an issue."
+
+            text = (
+                data.get("response")
+                or data.get("final_response")
+                or data.get("result")
+                or data.get("text")
             )
+            if text:
+                return text
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=BRIDGE_TIMEOUT,
-            )
+            logger.warning("Agent %s returned empty response: %s", agent_id, data)
+            return None
 
-            if process.returncode != 0:
-                error_text = stderr.decode().strip() if stderr else "unknown error"
-                logger.error(
-                    "Agent %s bridge exited with code %d: %s",
-                    agent_id, process.returncode, error_text,
-                )
-                return f"The {agent_id} agent ran into an issue. Try again in a moment."
-
-            response = stdout.decode().strip()
-            if not response:
-                logger.warning("Agent %s returned an empty response", agent_id)
-                return None
-
-            # The Node bridge emits JSON: {"response": "...", "usage": {...}, "error": null}
-            # Fall back to raw text if stdout isn't JSON.
-            try:
-                data = json.loads(response)
-                if isinstance(data, dict):
-                    if data.get("error"):
-                        logger.error(
-                            "Agent %s bridge returned error: %s",
-                            agent_id, data["error"],
-                        )
-                        return f"The {agent_id} agent ran into an issue."
-                    text = data.get("response") or data.get("text")
-                    if text:
-                        return text
-                    logger.warning(
-                        "Agent %s bridge returned empty response: %s",
-                        agent_id, data,
-                    )
-                    return None
-                return response
-            except json.JSONDecodeError:
-                return response
-
-        except asyncio.TimeoutError:
-            # Kill the orphaned subprocess to prevent resource leaks
-            try:
-                process.kill()
-                await process.wait()
-            except Exception:
-                pass
+        except httpx.TimeoutException:
             logger.error("Agent %s timed out after %ds", agent_id, BRIDGE_TIMEOUT)
             return f"The {agent_id} agent took too long to respond."
 
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Agent %s returned HTTP %d: %s",
+                agent_id, exc.response.status_code, exc.response.text[:200],
+            )
+            return f"The {agent_id} agent ran into an issue. Try again in a moment."
+
         except Exception as exc:
-            logger.error("Failed to call agent %s: %s", agent_id, exc)
+            logger.error("Failed to call agent %s: %s", agent_id, exc, exc_info=True)
             return f"Something went wrong reaching the {agent_id} agent."

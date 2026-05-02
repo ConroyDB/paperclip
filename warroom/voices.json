@@ -39,9 +39,9 @@
     "name": "Elara Thorne-Browne — Art Director",
     "description": "Creative, expressive"
   },
-  "orion-kenji-valeriano": {
+  "orion-kenji-valerino": {
     "gemini_voice": "Orbit",
-    "name": "Orion Kenji Valeriano — Intelligence",
+    "name": "Orion Kenji Valerino — Intelligence",
     "description": "Analytical, wide-ranging"
   },
   "ava-kim": {
@@ -49,10 +49,10 @@
     "name": "Ava Kim — Organic Growth",
     "description": "Energetic, editorial"
   },
-  "lucian-park-bench": {
-    "gemini_voice": "Puck",
-    "name": "Lucian Park (Bench) — Value Cartographer",
-    "description": "Incisive"
+  "gary-tan": {
+    "gemini_voice": "Iapetus",
+    "name": "Gary Tan — Chief Engineer",
+    "description": "Technical, calm"
   },
   "kieran": {
     "gemini_voice": "Rasalhed",

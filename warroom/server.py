@@ -179,7 +179,13 @@ def _load_agent_roster():
             return {a["id"] for a in agents}
     except Exception as exc:
         logger.warning("Could not read agent roster from %s: %s", roster_path, exc)
-    return {"main", "research", "comms", "content", "ops"}
+    # Fallback: the 14 Hermes Cloud Run service names.
+    return {
+        "yano-langley", "evelyn-reid", "theo-katsaros",
+        "alessandra-moretti-reyes", "kairo-vega", "gia-costa-moretti",
+        "lucian-park", "elara-thorne-browne", "orion-kenji-valerino",
+        "ava-kim", "gary-tan", "kieran", "sabrina", "julie-mccoy",
+    }
 
 VALID_AGENTS = _load_agent_roster()
 
@@ -293,11 +299,20 @@ async def list_agents_handler(params):
     """Tool: list the sub-agents Gemini can delegate to, with one-line descriptions."""
     # Build roster from the dynamic agent list + hardcoded descriptions for known agents
     _known_descriptions = {
-        "main": "The Hand of the King. General ops, triage, defaults if unsure.",
-        "research": "Grand Maester. Web research, academic sources, competitive intel.",
-        "comms": "Master of Whisperers. Email, Slack, Telegram, customer comms.",
-        "content": "The Royal Bard. Writing, scripts, LinkedIn, YouTube, blog posts.",
-        "ops": "Master of War. Calendar, scheduling, internal tools, automations.",
+        "yano-langley": "COO. Routes, orchestrates, sees the whole field. Default if unsure.",
+        "evelyn-reid": "Master Orchestrator. Scheduling, coordination, team sync, comms.",
+        "theo-katsaros": "Oracle. Prospect diagnostics, intake, friction assessment.",
+        "alessandra-moretti-reyes": "Positioning & Narrative. Copy, scripts, brand magnetism.",
+        "kairo-vega": "Revenue OS. KPIs, playbook, anti-sprawl.",
+        "gia-costa-moretti": "Reactivation. Warm DMs, premium client follow-up.",
+        "lucian-park": "Offer Engineer. Pricing, value mapping, offer architecture.",
+        "elara-thorne-browne": "Sovereign Art Director. Visuals, design direction.",
+        "orion-kenji-valerino": "Intelligence. Research, market data, Rigel Protocol.",
+        "ava-kim": "Organic Growth Architect. Content engine, SEO, calendar.",
+        "gary-tan": "Chief Engineer. Architecture, code review, MCP, infrastructure.",
+        "kieran": "Content Engine. Direct response copy, email sequences.",
+        "sabrina": "Remotion Video Engine. Programmatic video generation.",
+        "julie-mccoy": "Avatar Engine. HeyGen video, VideoAsk, AI presenter scripts.",
     }
     roster = {}
     # Start with dynamic roster from /tmp/warroom-agents.json
@@ -434,21 +449,21 @@ def read_pin_state() -> tuple[str, str]:
     a respawn (handled by the dashboard's /api/warroom/pin endpoint).
     """
     if not PIN_PATH.exists():
-        return "main", "direct"
+        return DEFAULT_AGENT, "direct"
     try:
         with open(PIN_PATH, "r") as f:
             data = json.load(f)
         if not isinstance(data, dict):
-            return "main", "direct"
+            return DEFAULT_AGENT, "direct"
         agent = data.get("agent")
         if not isinstance(agent, str) or agent not in VALID_AGENTS:
-            agent = "main"
+            agent = DEFAULT_AGENT
         mode = data.get("mode")
         if not isinstance(mode, str) or mode not in VALID_MODES:
             mode = "direct"
         return agent, mode
     except (OSError, json.JSONDecodeError, ValueError):
-        return "main", "direct"
+        return DEFAULT_AGENT, "direct"
 
 
 def read_pinned_agent() -> str:
@@ -479,11 +494,11 @@ async def run_live_mode():
     active_agent, active_mode = read_pin_state()
     logger.info("Active agent=%s mode=%s", active_agent, active_mode)
 
-    # In auto mode, voice comes from main (Gemini is the front desk,
-    # agents answer through it verbatim so they all sound the same
-    # until v2 session pooling lands).
-    voice_agent = "main" if active_mode == "auto" else active_agent
-    active_entry = AGENT_VOICES.get(voice_agent) or AGENT_VOICES.get("main", {})
+    # In auto mode, voice comes from the front-desk default (Yano —
+    # Gemini speaks as him, agents answer through it verbatim so they
+    # all sound the same until v2 session pooling lands).
+    voice_agent = DEFAULT_AGENT if active_mode == "auto" else active_agent
+    active_entry = AGENT_VOICES.get(voice_agent) or AGENT_VOICES.get(DEFAULT_AGENT, {})
     configured_voice = active_entry.get("gemini_voice") or "Charon"
     voice = os.environ.get("WARROOM_LIVE_VOICE", configured_voice)
     system_prompt = get_persona(active_agent, mode=active_mode)
