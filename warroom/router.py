@@ -52,6 +52,7 @@ SHORTNAME_TO_SERVICE = {
     "kieran": "kieran",
     "sabrina": "sabrina",
     "julie": "julie-mccoy",
+    "luna": "luna-ocalley",
 }
 
 # Cloud Run service names — the canonical IDs the rest of the war room uses.
