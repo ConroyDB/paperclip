@@ -68,5 +68,10 @@
     "gemini_voice": "Gacrux",
     "name": "Julie McCoy",
     "description": "Hospitable, clear"
+  },
+  "luna-ocalley": {
+    "gemini_voice": "Despina",
+    "name": "Luna O'Calley — Soul Alchemist",
+    "description": "Warm, intuitive, master coaching conduit"
   }
 }

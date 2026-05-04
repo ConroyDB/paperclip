@@ -185,6 +185,7 @@ def _load_agent_roster():
         "alessandra-moretti-reyes", "kairo-vega", "gia-costa-moretti",
         "lucian-park", "elara-thorne-browne", "orion-kenji-valerino",
         "ava-kim", "gary-tan", "kieran", "sabrina", "julie-mccoy",
+        "luna-ocalley",
     }
 
 VALID_AGENTS = _load_agent_roster()
@@ -313,6 +314,7 @@ async def list_agents_handler(params):
         "kieran": "Content Engine. Direct response copy, email sequences.",
         "sabrina": "Remotion Video Engine. Programmatic video generation.",
         "julie-mccoy": "Avatar Engine. HeyGen video, VideoAsk, AI presenter scripts.",
+        "luna-ocalley": "Soul Alchemist. Live coaching, C.U.E. Method engines, client session work.",
     }
     roster = {}
     # Start with dynamic roster from /tmp/warroom-agents.json
