@@ -34,9 +34,13 @@ logger = logging.getLogger("warroom.agent_bridge")
 # tasks can run to ~60s on a warm container.
 BRIDGE_TIMEOUT = 120
 
-# Cloud Run URL pattern. {agent} is the Hermes service name (e.g. "yano-langley").
-# /discord is the synchronous task endpoint that returns {"response": "..."}.
-AGENT_URL_TEMPLATE = "https://{agent}-794842605643.us-central1.run.app/discord"
+# SSD swarm via cbi-swarm.ngrok.app router (Sovereign_OS Mac Mini, all 15
+# personalities live behind one tunnel — see scripts/swarm_router.py).
+# {agent} is the Hermes service name (e.g. "yano-langley") OR the short
+# profile name ("yano"); the router resolves both via SERVICE_ALIASES.
+# /discord returns {"response": "...", "agent": "..."} — same shape as the
+# old Cloud Run /discord, so callers needed no changes.
+AGENT_URL_TEMPLATE = "https://cbi-swarm.ngrok.app/{agent}/discord"
 
 # Identifies the caller in MC/Discord chat logs so War Room invocations are
 # distinguishable from real Discord traffic.
